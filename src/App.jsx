@@ -1,13 +1,19 @@
 import { useMemo, useState } from "react";
 import JSZip from "jszip";
 import "./App.css";
+
 import {
   hojaAObjetos,
   construirPayComponents,
   listarMeses,
   filasParaTXT,
 } from "./payComponents";
+
 import { generarTXT, descargarTXT } from "./generarTXT";
+
+// ============================================================
+// OBTENER ÍNDICE DE UNA COLUMNA DE EXCEL
+// ============================================================
 
 function obtenerIndiceColumna(referencia) {
   const letras = referencia.replace(/[0-9]/g, "");
@@ -20,6 +26,10 @@ function obtenerIndiceColumna(referencia) {
   return indice - 1;
 }
 
+// ============================================================
+// CONVERTIR TEXTO XML A DOCUMENTO
+// ============================================================
+
 function convertirXML(textoXML) {
   const documento = new DOMParser().parseFromString(
     textoXML,
@@ -27,23 +37,36 @@ function convertirXML(textoXML) {
   );
 
   if (documento.getElementsByTagName("parsererror").length > 0) {
-    throw new Error("No fue posible interpretar un archivo interno del Excel.");
+    throw new Error(
+      "No fue posible interpretar un archivo interno del Excel."
+    );
   }
 
   return documento;
 }
 
+// ============================================================
+// LEER TEXTOS COMPARTIDOS DEL EXCEL
+// ============================================================
+
 function leerTextosCompartidos(xml) {
-  if (!xml) return [];
+  if (!xml) {
+    return [];
+  }
 
   const documento = convertirXML(xml);
 
-  return Array.from(documento.getElementsByTagName("si")).map((elemento) =>
-    Array.from(elemento.getElementsByTagName("t"))
-      .map((texto) => texto.textContent || "")
-      .join("")
+  return Array.from(documento.getElementsByTagName("si")).map(
+    (elemento) =>
+      Array.from(elemento.getElementsByTagName("t"))
+        .map((texto) => texto.textContent || "")
+        .join("")
   );
 }
+
+// ============================================================
+// OBTENER RUTA DE UNA HOJA DEL EXCEL
+// ============================================================
 
 function obtenerRutaHoja(destino) {
   const ruta = destino.replace(/^\/+/, "");
@@ -55,11 +78,17 @@ function obtenerRutaHoja(destino) {
   return `xl/${ruta}`;
 }
 
+// ============================================================
+// LEER LAS FILAS Y CELDAS DE UNA HOJA
+// ============================================================
+
 function leerFilasHoja(xml, textosCompartidos) {
   const documento = convertirXML(xml);
   const sheetData = documento.getElementsByTagName("sheetData")[0];
 
-  if (!sheetData) return [];
+  if (!sheetData) {
+    return [];
+  }
 
   return Array.from(sheetData.children)
     .filter((elemento) => elemento.localName === "row")
@@ -72,9 +101,12 @@ function leerFilasHoja(xml, textosCompartidos) {
         .forEach((celdaXML) => {
           const referencia = celdaXML.getAttribute("r");
 
-          if (!referencia) return;
+          if (!referencia) {
+            return;
+          }
 
           const tipo = celdaXML.getAttribute("t");
+
           const valorXML = Array.from(celdaXML.children).find(
             (elemento) => elemento.localName === "v"
           );
@@ -94,15 +126,24 @@ function leerFilasHoja(xml, textosCompartidos) {
           celdas[referencia] = valor;
         });
 
-      return { numeroFila, celdas };
+      return {
+        numeroFila,
+        celdas,
+      };
     });
 }
+
+// ============================================================
+// LEER EL ARCHIVO EXCEL XLSX O XLSM
+// ============================================================
 
 async function leerExcel(archivo) {
   const zip = await JSZip.loadAsync(archivo);
 
   const archivoLibro = zip.file("xl/workbook.xml");
-  const archivoRelaciones = zip.file("xl/_rels/workbook.xml.rels");
+  const archivoRelaciones = zip.file(
+    "xl/_rels/workbook.xml.rels"
+  );
 
   if (!archivoLibro || !archivoRelaciones) {
     throw new Error(
@@ -117,13 +158,15 @@ async function leerExcel(archivo) {
 
   const libroXML = convertirXML(textoLibro);
   const relacionesXML = convertirXML(textoRelaciones);
+
   const relaciones = {};
 
-  Array.from(relacionesXML.getElementsByTagName("Relationship")).forEach(
-    (relacion) => {
-      relaciones[relacion.getAttribute("Id")] = relacion.getAttribute("Target");
-    }
-  );
+  Array.from(
+    relacionesXML.getElementsByTagName("Relationship")
+  ).forEach((relacion) => {
+    relaciones[relacion.getAttribute("Id")] =
+      relacion.getAttribute("Target");
+  });
 
   const archivoTextos = zip.file("xl/sharedStrings.xml");
 
@@ -131,7 +174,10 @@ async function leerExcel(archivo) {
     archivoTextos ? await archivoTextos.async("text") : null
   );
 
-  const hojasXML = Array.from(libroXML.getElementsByTagName("sheet"));
+  const hojasXML = Array.from(
+    libroXML.getElementsByTagName("sheet")
+  );
+
   const hojas = [];
 
   for (const hojaXML of hojasXML) {
@@ -147,14 +193,18 @@ async function leerExcel(archivo) {
     const destino = relaciones[idRelacion];
 
     if (!destino) {
-      throw new Error(`No se encontró la ruta de la hoja "${nombre}".`);
+      throw new Error(
+        `No se encontró la ruta de la hoja "${nombre}".`
+      );
     }
 
     const ruta = obtenerRutaHoja(destino);
     const archivoHoja = zip.file(ruta);
 
     if (!archivoHoja) {
-      throw new Error(`No se encontró el contenido de la hoja "${nombre}".`);
+      throw new Error(
+        `No se encontró el contenido de la hoja "${nombre}".`
+      );
     }
 
     const contenido = await archivoHoja.async("text");
@@ -168,6 +218,35 @@ async function leerExcel(archivo) {
   return hojas;
 }
 
+// ============================================================
+// ICONO DE DESCARGA
+// ============================================================
+
+function IconoDescarga() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="28"
+      height="28"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+// ============================================================
+// APLICACIÓN PRINCIPAL
+// ============================================================
+
 export default function App() {
   const [archivo, setArchivo] = useState(null);
   const [hojas, setHojas] = useState([]);
@@ -175,11 +254,38 @@ export default function App() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
 
-  // Estados nuevos para la conversión a TXT
+  // Estados para la conversión a TXT
   const [registros, setRegistros] = useState([]);
   const [meses, setMeses] = useState([]);
   const [mesElegido, setMesElegido] = useState("");
   const [errorConversion, setErrorConversion] = useState("");
+  const [claveInput, setClaveInput] = useState(0);
+
+  // ==========================================================
+  // REINICIAR PARA CARGAR OTRO ARCHIVO
+  // ==========================================================
+
+  function reiniciar() {
+    setArchivo(null);
+    setHojas([]);
+    setHojaActiva(0);
+    setCargando(false);
+    setError("");
+    setRegistros([]);
+    setMeses([]);
+    setMesElegido("");
+    setErrorConversion("");
+    setClaveInput((n) => n + 1);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  // ==========================================================
+  // PROCESAR EL ARCHIVO SELECCIONADO
+  // ==========================================================
 
   async function procesarArchivo(evento) {
     const seleccionado = evento.target.files?.[0];
@@ -193,14 +299,20 @@ export default function App() {
     setMesElegido("");
     setErrorConversion("");
 
-    if (!seleccionado) return;
+    if (!seleccionado) {
+      return;
+    }
 
     const nombre = seleccionado.name.toLowerCase();
 
-    if (!nombre.endsWith(".xlsx") && !nombre.endsWith(".xlsm")) {
+    if (
+      !nombre.endsWith(".xlsx") &&
+      !nombre.endsWith(".xlsm")
+    ) {
       setError(
         "Selecciona un archivo .xlsx o .xlsm. El formato antiguo .xls no está admitido."
       );
+
       evento.target.value = "";
       return;
     }
@@ -216,14 +328,19 @@ export default function App() {
       if (resultado.length === 0) {
         setError("El archivo no contiene hojas de cálculo.");
       } else {
-        // La conversión usa la primera hoja. Si falla, la inspección sigue funcionando.
+        // La conversión utiliza la primera hoja del archivo.
+        // La inspección de las hojas sigue disponible si falla.
+
         try {
           const objetos = hojaAObjetos(resultado[0]);
           const mesesDisponibles = listarMeses(objetos);
 
           setRegistros(objetos);
           setMeses(mesesDisponibles);
-          setMesElegido(mesesDisponibles[mesesDisponibles.length - 1] || "");
+
+          setMesElegido(
+            mesesDisponibles[mesesDisponibles.length - 1] || ""
+          );
         } catch (errConversion) {
           setErrorConversion(
             errConversion instanceof Error
@@ -234,32 +351,58 @@ export default function App() {
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Ocurrió un error al leer el Excel."
+        err instanceof Error
+          ? err.message
+          : "Ocurrió un error al leer el Excel."
       );
     } finally {
       setCargando(false);
     }
   }
 
-  // Cadenas de Pay Components del mes elegido
+  // ==========================================================
+  // CONSTRUIR PAY COMPONENTS DEL MES ELEGIDO
+  // ==========================================================
+
   const conversion = useMemo(() => {
     if (!mesElegido || registros.length === 0) {
-      return { empleados: [], errores: [] };
+      return {
+        empleados: [],
+        errores: [],
+      };
     }
 
     return construirPayComponents(registros, mesElegido);
   }, [registros, mesElegido]);
 
+  // ==========================================================
+  // GENERAR Y DESCARGAR EL TXT
+  // ==========================================================
+
   function descargar() {
     try {
-      const contenido = generarTXT(filasParaTXT(conversion.empleados));
-      descargarTXT(contenido, `nomina-${mesElegido}.txt`);
+      const contenido = generarTXT(
+        filasParaTXT(conversion.empleados)
+      );
+
+      descargarTXT(
+        contenido,
+        `nomina-${mesElegido}.txt`
+      );
+
+      setErrorConversion("");
     } catch (err) {
       setErrorConversion(
-        err instanceof Error ? err.message : "No se pudo generar el TXT."
+        err instanceof Error
+          ? err.message
+          : "No se pudo generar el TXT."
       );
     }
   }
+
+  // ==========================================================
+  // INFORMACIÓN DE LA HOJA SELECCIONADA
+  // ==========================================================
 
   const hojaSeleccionada = hojas[hojaActiva];
 
@@ -272,19 +415,41 @@ export default function App() {
             )
           )
         )
-      ).sort((a, b) => obtenerIndiceColumna(a) - obtenerIndiceColumna(b))
+      ).sort(
+        (a, b) =>
+          obtenerIndiceColumna(a) - obtenerIndiceColumna(b)
+      )
     : [];
+
+  // ==========================================================
+  // INTERFAZ
+  // ==========================================================
 
   return (
     <main className="contenedor">
-      <header className="encabezado">
-        <div className="logo">N</div>
+      {/* ENCABEZADO: LOGO, TÍTULO Y BIENVENIDA */}
 
-        <div>
-          <h1>Conversor de nómina</h1>
-          <p>Excel a TXT · Integración de nómina</p>
+      <header className="encabezado-app">
+        <div className="encabezado-izquierda">
+          <img
+            src="/imagen.png"
+            alt="Logo Solutions & Payroll"
+            className="encabezado-logo"
+          />
+
+          <h1 className="encabezado-titulo">
+            Conversor de nómina
+          </h1>
         </div>
+
+        <span className="encabezado-bienvenida">
+          Bienvenido, usuario
+        </span>
       </header>
+
+      {/* ======================================================
+          1. SELECCIONAR ARCHIVO
+      ====================================================== */}
 
       <section className="panel">
         <h2>1. Seleccionar archivo de nómina</h2>
@@ -296,19 +461,35 @@ export default function App() {
         <label className="selector-archivo">
           <span>Seleccionar archivo Excel</span>
 
-          <input type="file" accept=".xlsx,.xlsm" onChange={procesarArchivo} />
+          <input
+            key={claveInput}
+            type="file"
+            accept=".xlsx,.xlsm"
+            onChange={procesarArchivo}
+          />
         </label>
 
         {archivo && (
           <p className="archivo-seleccionado">
-            Archivo seleccionado: <strong>{archivo.name}</strong>
+            Archivo seleccionado:{" "}
+            <strong>{archivo.name}</strong>
           </p>
         )}
 
-        {cargando && <p>Leyendo el archivo con JSZip...</p>}
+        {cargando && (
+          <p className="nota">
+            Leyendo el archivo con JSZip...
+          </p>
+        )}
 
-        {error && <p className="mensaje-error">{error}</p>}
+        {error && (
+          <p className="mensaje-error">{error}</p>
+        )}
       </section>
+
+      {/* ======================================================
+          2. ESTRUCTURA DEL EXCEL
+      ====================================================== */}
 
       {hojas.length > 0 && (
         <section className="panel">
@@ -323,7 +504,11 @@ export default function App() {
               <button
                 key={`${hoja.nombre}-${indice}`}
                 type="button"
-                className={hojaActiva === indice ? "pestana activa" : "pestana"}
+                className={
+                  hojaActiva === indice
+                    ? "pestana activa"
+                    : "pestana"
+                }
                 onClick={() => setHojaActiva(indice)}
               >
                 {hoja.nombre}
@@ -334,11 +519,16 @@ export default function App() {
           {hojaSeleccionada && (
             <>
               <p className="resumen-hoja">
-                Hoja: <strong>{hojaSeleccionada.nombre}</strong>
+                Hoja:{" "}
+                <strong>{hojaSeleccionada.nombre}</strong>
                 {" · "}
-                Filas: <strong>{hojaSeleccionada.filas.length}</strong>
+                Filas:{" "}
+                <strong>
+                  {hojaSeleccionada.filas.length}
+                </strong>
                 {" · "}
-                Columnas: <strong>{columnas.length}</strong>
+                Columnas:{" "}
+                <strong>{columnas.length}</strong>
               </p>
 
               <div className="tabla-contenedor">
@@ -354,30 +544,47 @@ export default function App() {
                   </thead>
 
                   <tbody>
-                    {hojaSeleccionada.filas.slice(0, 30).map((fila, indice) => (
-                      <tr key={`${fila.numeroFila ?? indice}-${indice}`}>
-                        <td className="numero-fila">
-                          {fila.numeroFila ?? indice + 1}
-                        </td>
+                    {hojaSeleccionada.filas
+                      .slice(0, 30)
+                      .map((fila, indice) => (
+                        <tr
+                          key={`${
+                            fila.numeroFila ?? indice
+                          }-${indice}`}
+                        >
+                          <td className="numero-fila">
+                            {fila.numeroFila ?? indice + 1}
+                          </td>
 
-                        {columnas.map((columna) => {
-                          const numeroFila = fila.numeroFila ?? indice + 1;
-                          const letraColumna = columna.replace(/\d+/g, "");
-                          const referencia = `${letraColumna}${numeroFila}`;
-                          const valor = fila.celdas[referencia] ?? "";
+                          {columnas.map((columna) => {
+                            const numeroFila =
+                              fila.numeroFila ?? indice + 1;
 
-                          return <td key={columna}>{String(valor)}</td>;
-                        })}
-                      </tr>
-                    ))}
+                            const letraColumna =
+                              columna.replace(/\d+/g, "");
+
+                            const referencia =
+                              `${letraColumna}${numeroFila}`;
+
+                            const valor =
+                              fila.celdas[referencia] ?? "";
+
+                            return (
+                              <td key={columna}>
+                                {String(valor)}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
 
               {hojaSeleccionada.filas.length > 30 && (
                 <p className="nota">
-                  Se muestran las primeras 30 filas. La lectura conserva los
-                  datos encontrados en las demás filas.
+                  Se muestran las primeras 30 filas. La lectura
+                  conserva los datos encontrados en las demás filas.
                 </p>
               )}
             </>
@@ -385,26 +592,35 @@ export default function App() {
         </section>
       )}
 
+      {/* ======================================================
+          3. GENERAR TXT DE PAY COMPONENTS
+      ====================================================== */}
+
       {hojas.length > 0 && (
         <section className="panel">
           <h2>3. Generar TXT de Pay Components</h2>
 
           {errorConversion && (
-            <p className="mensaje-error">{errorConversion}</p>
+            <p className="mensaje-error">
+              {errorConversion}
+            </p>
           )}
 
           {meses.length > 0 && (
             <>
               <p className="descripcion">
-                Elige el mes a transferir. Por ahora solo está mapeado el
-                concepto SUELDO (001) como 9GBA.
+                Elige el mes a transferir. Mapeo propuesto desde
+                el manual; solo SUELDO (001) está confirmado.
               </p>
 
-              <label>
+              <label className="selector-mes">
                 Mes:{" "}
+
                 <select
                   value={mesElegido}
-                  onChange={(evento) => setMesElegido(evento.target.value)}
+                  onChange={(evento) =>
+                    setMesElegido(evento.target.value)
+                  }
                 >
                   {meses.map((mes) => (
                     <option key={mes} value={mes}>
@@ -414,23 +630,32 @@ export default function App() {
                 </select>
               </label>
 
+              {/* RESUMEN DE LA CONVERSIÓN */}
+
               <p className="resumen-hoja">
                 Empleados con Pay Components:{" "}
                 <strong>{conversion.empleados.length}</strong>
                 {" · "}
-                Con error: <strong>{conversion.errores.length}</strong>
+                Con error:{" "}
+                <strong>{conversion.errores.length}</strong>
               </p>
+
+              {/* ERRORES DE CONVERSIÓN */}
 
               {conversion.errores.length > 0 && (
                 <ul className="mensaje-error">
-                  {conversion.errores.map((e) => (
-                    <li key={`${e.tercero}-${e.contrato}`}>
-                      {e.tercero} · {e.nombre} (contrato {e.contrato}):{" "}
-                      {e.mensaje}
+                  {conversion.errores.map((e, indice) => (
+                    <li
+                      key={`${e.tercero}-${e.contrato}-${indice}`}
+                    >
+                      {e.tercero} · {e.nombre} (contrato{" "}
+                      {e.contrato}): {e.mensaje}
                     </li>
                   ))}
                 </ul>
               )}
+
+              {/* TABLA DE EMPLEADOS */}
 
               {conversion.empleados.length > 0 && (
                 <div className="tabla-contenedor">
@@ -446,15 +671,23 @@ export default function App() {
                     </thead>
 
                     <tbody>
-                      {conversion.empleados.slice(0, 20).map((e) => (
-                        <tr key={`${e.tercero}-${e.contrato}`}>
-                          <td>{e.tercero}</td>
-                          <td>{e.nombre}</td>
-                          <td>{e.contrato}</td>
-                          <td>{e.cadena}</td>
-                          <td>{e.cadena.length}</td>
-                        </tr>
-                      ))}
+                      {conversion.empleados
+                        .slice(0, 20)
+                        .map((empleado, indice) => (
+                          <tr
+                            key={`${empleado.tercero}-${empleado.contrato}-${indice}`}
+                          >
+                            <td>{empleado.tercero}</td>
+                            <td>{empleado.nombre}</td>
+                            <td>{empleado.contrato}</td>
+                            <td className="celda-cadena">
+                              {empleado.cadena}
+                            </td>
+                            <td>
+                              {empleado.cadena.length}
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>
@@ -462,19 +695,95 @@ export default function App() {
 
               {conversion.empleados.length > 20 && (
                 <p className="nota">
-                  Se muestran los primeros 20 empleados. El TXT incluye todos.
+                  Se muestran los primeros 20 empleados. El TXT
+                  incluye todos.
                 </p>
               )}
 
-              <button
-                type="button"
-                className="pestana activa"
-                onClick={descargar}
-                disabled={conversion.empleados.length === 0}
-              >
-                Descargar TXT
-              </button>
+              {/* DESCARGA DEL ARCHIVO TXT */}
+
+              <div className="descarga-txt">
+                <div className="descarga-detalles">
+                  <div className="descarga-detalle">
+                    <span className="detalle-label">
+                      Mes seleccionado
+                    </span>
+
+                    <strong>{mesElegido || "—"}</strong>
+                  </div>
+
+                  <div className="descarga-detalle">
+                    <span className="detalle-label">
+                      Empleados procesados
+                    </span>
+
+                    <strong>
+                      {conversion.empleados.length}
+                    </strong>
+                  </div>
+
+                  <div className="descarga-detalle">
+                    <span className="detalle-label">
+                      Registros con errores
+                    </span>
+
+                    <strong
+                      className={
+                        conversion.errores.length > 0
+                          ? "texto-error"
+                          : ""
+                      }
+                    >
+                      {conversion.errores.length}
+                    </strong>
+                  </div>
+                </div>
+
+                {conversion.errores.length > 0 && (
+                  <p className="descarga-advertencia">
+                    Hay registros con errores. Revisa el detalle
+                    anterior antes de utilizar el archivo generado.
+                  </p>
+                )}
+
+                <div className="descarga-acciones">
+                  <button
+                    type="button"
+                    className="boton-descargar-txt"
+                    onClick={descargar}
+                    disabled={
+                      conversion.empleados.length === 0 ||
+                      !mesElegido
+                    }
+                  >
+                    <IconoDescarga />
+                    Generar y descargar TXT
+                  </button>
+
+                  <button
+                    type="button"
+                    className="boton-secundario"
+                    onClick={reiniciar}
+                  >
+                    Añadir nuevo archivo
+                  </button>
+                </div>
+
+                <p className="descarga-pie">
+                  Nombre del archivo:{" "}
+                  <strong>
+                    nomina-{mesElegido || "mes"}.txt
+                  </strong>
+                </p>
+              </div>
             </>
+          )}
+
+          {meses.length === 0 && !errorConversion && (
+            <p className="nota">
+              No se encontraron meses disponibles para generar
+              el archivo TXT.
+            </p>
           )}
         </section>
       )}

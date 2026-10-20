@@ -2,18 +2,45 @@ import { dividirNotas } from "./dividirNotas";
 
 /**
  * Reglas Concepto Excel -> Pay Component.
- * Por ahora solo SUELDO (001) está confirmado (lo dijo Johana).
- * Cuando Ricardo confirme los demás, se agregan aquí sin tocar el resto.
+ *
+ * Los códigos salen de la lista del manual (secciones 7.2 y 7.3).
+ * Solo SUELDO (001) está confirmado (lo dijo Johana); el resto son
+ * PROPUESTAS pendientes de validar con Ricardo. Para corregir una,
+ * basta con cambiar el "codigo" de su línea o borrarla.
  *
  * fuente:
  *  - "salarioContrato": toma la columna "Salario del contrato" (una sola vez por empleado/mes)
  *  - "devengo": suma la columna "Devengo" de todas las filas del concepto en el mes
+ *
+ * Varios conceptos pueden compartir el mismo código: sus valores se suman
+ * (o, con "salarioContrato", se toma el salario una sola vez).
+ *
+ * No se reportan (no hay código equivalente en el manual): deducciones,
+ * prestaciones legales, incapacidades, licencias y los Sodexo repetidos
+ * 020, 612 y 924.
  */
 export const REGLAS_CONCEPTOS = {
-  "001": { codigo: "9GBA", fuente: "salarioContrato" },
-  // "923": { codigo: "SODEXO", fuente: "devengo" },   // pendiente de confirmar
-  // "007": { codigo: "9OVI", fuente: "devengo" },     // pendiente de confirmar
+  "001": { codigo: "9GBA", fuente: "salarioContrato" }, // SUELDO (confirmado)
+  "002": { codigo: "9GBA", fuente: "salarioContrato" }, // SALARIO INTEGRAL (propuesto)
+  "006": { codigo: "9ASA", fuente: "devengo" }, // COMISIONES SALARIO INTEGRAL (propuesto)
+  "007": { codigo: "9ASA", fuente: "devengo" }, // COMISIONES (propuesto)
+  "016": { codigo: "9OVI", fuente: "devengo" }, // PREMIO MBO -INTEGRAL (propuesto)
+  "019": { codigo: "9OVI", fuente: "devengo" }, // BONIFICACION ANUAL X SALAR (propuesto)
+  "021": { codigo: "9OVI", fuente: "devengo" }, // BONO SALARIAL MESES (propuesto)
+  "027": { codigo: "9OVI", fuente: "devengo" }, // PREMIO MBO - SALARIO ORDINARIO (propuesto)
+  "516": { codigo: "9OVI", fuente: "devengo" }, // PREMIO MERA (propuesto)
+  "200": { codigo: "9ROT", fuente: "devengo" }, // ALIMENTACION (propuesto)
+  "201": { codigo: "9MOA", fuente: "devengo" }, // MEDIOS DE TRANSPORTE CUOTA (propuesto)
+  "202": { codigo: "9MOA", fuente: "devengo" }, // MEDIOS DE TRANSPORTE (propuesto)
+  "923": { codigo: "SODEXO", fuente: "devengo" }, // SODEXO BONOS ALIMENTACION (propuesto)
 };
+
+/**
+ * Orden de los códigos dentro de la cadena. Se fija a mano porque JavaScript
+ * ordena primero las claves numéricas ("200", "923") y eso desordenaba la
+ * cadena. Sigue el ejemplo del manual: 9GBA-.../SODEXO-.../9ROT-...
+ */
+const ORDEN_CODIGOS = ["9GBA", "SODEXO", "9ROT", "9ASA", "9OVI", "9MOA"];
 
 const COLUMNAS_REQUERIDAS = [
   "Tercero",
@@ -117,7 +144,16 @@ export function construirPayComponents(
 
   const empleados = [];
   const errores = [];
-  const ordenCodigos = Object.values(reglas).map((r) => r.codigo);
+
+  // Sin repetidos y con el orden fijo de ORDEN_CODIGOS; un código de las
+  // reglas que no esté en la lista va al final, para que nunca se pierda.
+  const codigosEnReglas = Array.from(
+    new Set(Object.values(reglas).map((r) => r.codigo))
+  );
+  const ordenCodigos = [
+    ...ORDEN_CODIGOS.filter((c) => codigosEnReglas.includes(c)),
+    ...codigosEnReglas.filter((c) => !ORDEN_CODIGOS.includes(c)),
+  ];
 
   for (const grupo of grupos.values()) {
     const conceptos = ordenCodigos
