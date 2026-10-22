@@ -1,4 +1,3 @@
-
 const CAPACIDADES = [
   { campo: "notas", maximo: 255 },
   { campo: "txt_adc1", maximo: 50 },
@@ -19,7 +18,7 @@ export function dividirNotas(cadena) {
   }
 
   for (const concepto of conceptos) {
-    if (!/^[A-Z0-9]+--?\d+$/.test(concepto)) {
+    if (!/^[A-Z0-9]+-\d+$/.test(concepto)) {
       throw new Error(
         `El concepto "${concepto}" no cumple el formato CODIGO-VALOR.`
       );
@@ -40,15 +39,16 @@ export function dividirNotas(cadena) {
     let asignado = false;
 
     while (indiceCampo < CAPACIDADES.length) {
-      const configuracion = CAPACIDADES[indiceCampo];
-      const campoActual = resultado[configuracion.campo];
+      const { campo, maximo } = CAPACIDADES[indiceCampo];
+      const campoActual = resultado[campo];
+      const candidato = campoActual ? `${campoActual}/${concepto}` : concepto;
 
-      const candidato = campoActual
-        ? `${campoActual}/${concepto}`
-        : concepto;
+      // Se deja 1 carácter libre para el "/" final si la cadena continúa
+      // en el campo siguiente (no aplica al último campo).
+      const reserva = indiceCampo < CAPACIDADES.length - 1 ? 1 : 0;
 
-      if (candidato.length <= configuracion.maximo) {
-        resultado[configuracion.campo] = candidato;
+      if (candidato.length + reserva <= maximo) {
+        resultado[campo] = candidato;
         asignado = true;
         break;
       }
@@ -60,6 +60,17 @@ export function dividirNotas(cadena) {
       throw new Error(
         `No hay espacio suficiente para almacenar el concepto "${concepto}".`
       );
+    }
+  }
+
+  // Cada campo que continúa en el siguiente termina en "/" (el corte
+  // queda después del slash, como pide el manual).
+  for (let i = 0; i < CAPACIDADES.length - 1; i++) {
+    const actual = CAPACIDADES[i].campo;
+    const siguiente = CAPACIDADES[i + 1].campo;
+
+    if (resultado[actual] && resultado[siguiente]) {
+      resultado[actual] += "/";
     }
   }
 

@@ -10,6 +10,11 @@ import {
 } from "./payComponents";
 
 import { generarTXT, descargarTXT } from "./generarTXT";
+import { FORMATO_INTEGRACION } from "./formatoIntegracion";
+
+// true  -> el TXT descargado sale con las columnas alineadas (ordenado).
+// false -> formato compacto, sin espacios extra.
+const TXT_ALINEADO = true;
 
 // ============================================================
 // OBTENER ÍNDICE DE UNA COLUMNA DE EXCEL
@@ -244,6 +249,56 @@ function IconoDescarga() {
 }
 
 // ============================================================
+// ICONO DE AYUDA
+// ============================================================
+
+function IconoAyuda() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5" />
+      <line x1="12" y1="17.8" x2="12" y2="17.8" />
+    </svg>
+  );
+}
+
+// ============================================================
+// ICONO DE ARCHIVO
+// ============================================================
+
+function IconoArchivo() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <path d="m9 15 2 2 4-4" />
+    </svg>
+  );
+}
+
+// ============================================================
 // APLICACIÓN PRINCIPAL
 // ============================================================
 
@@ -369,6 +424,7 @@ export default function App() {
       return {
         empleados: [],
         errores: [],
+        advertencias: [],
       };
     }
 
@@ -377,18 +433,24 @@ export default function App() {
 
   // ==========================================================
   // GENERAR Y DESCARGAR EL TXT
+  // El formato (separador, encabezado, BOM, etc.) se configura
+  // en formatoIntegracion.js
   // ==========================================================
 
   function descargar() {
     try {
       const contenido = generarTXT(
-        filasParaTXT(conversion.empleados)
+        filasParaTXT(conversion.empleados, {
+          incluirEncabezado: FORMATO_INTEGRACION.incluirEncabezado,
+        }),
+        {
+          alinear: TXT_ALINEADO,
+          lineaSeparadora: false,
+          espaciarSeparador: false,
+        }
       );
 
-      descargarTXT(
-        contenido,
-        `nomina-${mesElegido}.txt`
-      );
+      descargarTXT(contenido, `nomina-${mesElegido}.txt`);
 
       setErrorConversion("");
     } catch (err) {
@@ -448,9 +510,77 @@ export default function App() {
       </header>
 
       {/* ======================================================
+          CÓMO SE USA LA PÁGINA
+      ====================================================== */}
+
+      <section className="ayuda">
+        <details>
+          <summary>
+            <span className="ayuda-icono">
+              <IconoAyuda />
+            </span>
+            <span className="ayuda-titulo">
+              Cómo se usa la página
+            </span>
+            <span className="ayuda-flecha" aria-hidden="true" />
+          </summary>
+
+          <ol className="pasos-uso">
+            <li>
+              <strong>Selecciona</strong> el Excel de nómina (
+              <code>.xlsx</code> o <code>.xlsm</code>).
+            </li>
+            <li>
+              <strong>Revisa</strong> las hojas y columnas. La
+              conversión usa la <em>primera hoja</em>.
+            </li>
+            <li>
+              <strong>Elige el mes</strong>. Por defecto es el
+              último disponible.
+            </li>
+            <li>
+              <strong>Verifica</strong> los empleados procesados,
+              los registros con error y las advertencias.
+            </li>
+            <li>
+              <strong>Descarga</strong> el archivo con{" "}
+              <em>Descargar TXT</em>.
+            </li>
+            <li>
+              Usa <em>Añadir nuevo archivo</em> para empezar de
+              nuevo.
+            </li>
+          </ol>
+        </details>
+      </section>
+
+      {/* ======================================================
           1. SELECCIONAR ARCHIVO
       ====================================================== */}
 
+      {archivo ? (
+        <>
+          <section className="barra-archivo">
+            <span className="barra-archivo-icono">
+              <IconoArchivo />
+            </span>
+
+            <p className="barra-archivo-texto">
+              Archivo seleccionado: <strong>{archivo.name}</strong>
+            </p>
+
+            <button
+              type="button"
+              className="barra-archivo-cambiar"
+              onClick={reiniciar}
+            >
+              Cambiar archivo
+            </button>
+          </section>
+
+          {error && <p className="mensaje-error">{error}</p>}
+        </>
+      ) : (
       <section className="panel">
         <h2>1. Seleccionar archivo de nómina</h2>
 
@@ -469,13 +599,6 @@ export default function App() {
           />
         </label>
 
-        {archivo && (
-          <p className="archivo-seleccionado">
-            Archivo seleccionado:{" "}
-            <strong>{archivo.name}</strong>
-          </p>
-        )}
-
         {cargando && (
           <p className="nota">
             Leyendo el archivo con JSZip...
@@ -486,6 +609,7 @@ export default function App() {
           <p className="mensaje-error">{error}</p>
         )}
       </section>
+      )}
 
       {/* ======================================================
           2. ESTRUCTURA DEL EXCEL
@@ -638,6 +762,9 @@ export default function App() {
                 {" · "}
                 Con error:{" "}
                 <strong>{conversion.errores.length}</strong>
+                {" · "}
+                Con advertencia:{" "}
+                <strong>{conversion.advertencias.length}</strong>
               </p>
 
               {/* ERRORES DE CONVERSIÓN */}
@@ -653,6 +780,29 @@ export default function App() {
                     </li>
                   ))}
                 </ul>
+              )}
+
+              {/* ADVERTENCIAS DE CONVERSIÓN */}
+
+              {conversion.advertencias.length > 0 && (
+                <div className="mensaje-advertencia">
+                  <p>
+                    Estos empleados tienen datos sin reportar. No
+                    bloquean la descarga, pero revísalos antes de
+                    usar el archivo:
+                  </p>
+
+                  <ul>
+                    {conversion.advertencias.map((a, indice) => (
+                      <li
+                        key={`${a.tercero}-${a.contrato}-${a.codigo}-${indice}`}
+                      >
+                        {a.tercero} · {a.nombre} (contrato{" "}
+                        {a.contrato}): {a.mensaje}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
 
               {/* TABLA DE EMPLEADOS */}
@@ -757,7 +907,7 @@ export default function App() {
                     }
                   >
                     <IconoDescarga />
-                    Generar y descargar TXT
+                    Descargar TXT
                   </button>
 
                   <button

@@ -129,6 +129,7 @@ export function construirPayComponents(
         nombre: registro["Descripción"],
         contrato: String(registro["Contrato"]).trim(),
         valores: {},
+        codigosSalario: new Set(),
       });
     }
 
@@ -136,6 +137,7 @@ export function construirPayComponents(
 
     if (regla.fuente === "salarioContrato") {
       grupo.valores[regla.codigo] = Number(registro["Salario del contrato"]);
+      grupo.codigosSalario.add(regla.codigo);
     } else {
       grupo.valores[regla.codigo] =
         (grupo.valores[regla.codigo] ?? 0) + Number(registro["Devengo"]);
@@ -144,6 +146,7 @@ export function construirPayComponents(
 
   const empleados = [];
   const errores = [];
+  const advertencias = [];
 
   // Sin repetidos y con el orden fijo de ORDEN_CODIGOS; un código de las
   // reglas que no esté en la lista va al final, para que nunca se pierda.
@@ -161,6 +164,27 @@ export function construirPayComponents(
       .map((codigo) => [codigo, Math.round(grupo.valores[codigo])])
       .filter(([, valor]) => valor > 0)
       .map(([codigo, valor]) => `${codigo}-${valor}`);
+
+    // Advertencia: el concepto de salario existe pero su valor es 0, vacío
+    // o inválido, así que ese código no se reporta (no es un error: el
+    // resto de la cadena sigue siendo válido).
+    const codigosSinSalario = Array.from(grupo.codigosSalario).filter(
+      (codigo) => !(grupo.valores[codigo] > 0)
+    );
+
+    for (const codigo of codigosSinSalario) {
+      advertencias.push({
+        tercero: grupo.tercero,
+        nombre: grupo.nombre,
+        contrato: grupo.contrato,
+        codigo,
+        enTXT: conceptos.length > 0,
+        mensaje:
+          conceptos.length > 0
+            ? `Salario del contrato en 0: no se reporta ${codigo}.`
+            : `Salario del contrato en 0: no se reporta ${codigo} y el empleado no aparece en el TXT.`,
+      });
+    }
 
     if (conceptos.length === 0) continue;
 
@@ -184,12 +208,12 @@ export function construirPayComponents(
     }
   }
 
-  return { empleados, errores };
+  return { empleados, errores, advertencias };
 }
 
 /* ---------- 4. Filas listas para generarTXT ---------- */
 
-export function filasParaTXT(empleados) {
+export function filasParaTXT(empleados, { incluirEncabezado = true } = {}) {
   const encabezado = [
     "tercero",
     "contrato",
@@ -210,5 +234,5 @@ export function filasParaTXT(empleados) {
     e.campos.txt_adc4,
   ]);
 
-  return [encabezado, ...filas];
+  return incluirEncabezado ? [encabezado, ...filas] : filas;
 }
